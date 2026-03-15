@@ -244,6 +244,10 @@ class VectorStore:
 
         Args:
             save_path: Directory path (created if it doesn't exist).
+
+        Security note:
+            Metadata is serialised with ``pickle``. Only load these files with
+            :meth:`load` from sources you trust entirely.
         """
         os.makedirs(save_path, exist_ok=True)
 
@@ -277,6 +281,12 @@ class VectorStore:
 
         Returns:
             Populated VectorStore instance.
+
+        Security warning:
+            The ``metadata.pkl`` file is deserialised with ``pickle``, which
+            can execute **arbitrary Python code**. Only load index directories
+            that you created yourself via :meth:`save`. Never load index files
+            received from untrusted sources.
         """
         if not FAISS_AVAILABLE:
             raise RuntimeError("faiss library required. Install: pip install faiss-cpu")
@@ -284,6 +294,12 @@ class VectorStore:
         metadata_file = os.path.join(load_path, "metadata.pkl")
         if not os.path.exists(metadata_file):
             raise FileNotFoundError(f"[vector_store] metadata.pkl not found in: {load_path}")
+
+        logger.warning(
+            "[vector_store] Loading pickle file '%s'. "
+            "Ensure this file originates from a trusted source.",
+            metadata_file,
+        )
 
         with open(metadata_file, "rb") as f:
             data = pickle.load(f)
@@ -402,7 +418,12 @@ class InMemoryVectorStore:
         }
 
     def save(self, save_path: str) -> None:
-        """Persist the in-memory store to a pickle file."""
+        """Persist the in-memory store to a pickle file.
+
+        Security note:
+            The file is serialised with ``pickle``. Only load it with
+            :meth:`load` from sources you trust entirely.
+        """
         os.makedirs(save_path, exist_ok=True)
         save_file = os.path.join(save_path, "in_memory_store.pkl")
         with open(save_file, "wb") as f:
@@ -419,10 +440,23 @@ class InMemoryVectorStore:
 
     @classmethod
     def load(cls, load_path: str) -> "InMemoryVectorStore":
-        """Load an in-memory store from disk."""
+        """Load an in-memory store from disk.
+
+        Security warning:
+            The store file is deserialised with ``pickle``, which can execute
+            **arbitrary Python code**. Only load files that you created
+            yourself via :meth:`save`. Never load pickle files received from
+            untrusted sources.
+        """
         load_file = os.path.join(load_path, "in_memory_store.pkl")
         if not os.path.exists(load_file):
             raise FileNotFoundError(f"[in_memory_store] File not found: {load_file}")
+
+        logger.warning(
+            "[in_memory_store] Loading pickle file '%s'. "
+            "Ensure this file originates from a trusted source.",
+            load_file,
+        )
 
         with open(load_file, "rb") as f:
             data = pickle.load(f)

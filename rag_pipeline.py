@@ -10,6 +10,7 @@ import logging
 import os
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
+from urllib.parse import urlparse
 
 from ingestion import load_repository
 from chunking import chunk_repository, CodeChunk
@@ -37,6 +38,32 @@ try:
 except ImportError:
     logger.warning("requests not installed. Install with: pip install requests")
     REQUESTS_AVAILABLE = False
+
+
+# ─── Helpers ─────────────────────────────────────────────────────
+
+def _validate_ollama_url(url: str) -> None:
+    """Validate the Ollama base URL to prevent SSRF and misconfiguration.
+
+    Args:
+        url: The URL string to validate.
+
+    Raises:
+        ValueError: If *url* does not use an http or https scheme, or if it
+                    contains credentials (user:password) which could
+                    inadvertently leak secrets in logs.
+    """
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https"):
+        raise ValueError(
+            f"ollama_base_url must use 'http' or 'https' scheme, got: {parsed.scheme!r}. "
+            "Example: 'http://localhost:11434'"
+        )
+    if parsed.username or parsed.password:
+        raise ValueError(
+            "ollama_base_url must not contain credentials (user:password). "
+            "Use environment variables or a secrets manager instead."
+        )
 
 
 # ─── Configuration ───────────────────────────────────────────────
@@ -76,7 +103,9 @@ class RAGConfig:
         ollama_url = os.getenv("OLLAMA_BASE_URL")
         if ollama_url:
             self.ollama_base_url = ollama_url
-
+        # Validate the Ollama URL early so misconfiguration is caught at
+        # startup rather than at the first LLM call.
+        _validate_ollama_url(self.ollama_base_url)
 
 @dataclass
 class RetrievalResult:
