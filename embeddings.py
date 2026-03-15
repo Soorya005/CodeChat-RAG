@@ -196,6 +196,11 @@ def save_embeddings(embedded_chunks: List[EmbeddedChunk], output_path: str) -> N
     Args:
         embedded_chunks: List of EmbeddedChunk objects.
         output_path:     Destination path *without* extension — `.pkl` appended.
+
+    Security note:
+        The resulting file is serialised with ``pickle``. Only load it with
+        :func:`load_embeddings` from sources you trust entirely, as pickle
+        files can execute arbitrary code on deserialization.
     """
     if not embedded_chunks:
         logger.warning("[embedder] save_embeddings: nothing to save.")
@@ -224,11 +229,23 @@ def load_embeddings(input_path: str) -> List[EmbeddedChunk]:
 
     Returns:
         List of EmbeddedChunk objects.
+
+    Security warning:
+        Pickle files can execute **arbitrary Python code** during
+        deserialization. Only call this function with files that you created
+        yourself via :func:`save_embeddings`. Never load pickle files
+        received from untrusted sources.
     """
     load_file = f"{input_path}.pkl"
 
     if not os.path.exists(load_file):
         raise FileNotFoundError(f"[embedder] Embeddings file not found: {load_file}")
+
+    logger.warning(
+        "[embedder] Loading pickle file '%s'. "
+        "Ensure this file originates from a trusted source.",
+        load_file,
+    )
 
     with open(load_file, "rb") as f:
         data = pickle.load(f)
